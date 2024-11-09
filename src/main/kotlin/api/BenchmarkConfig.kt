@@ -10,7 +10,7 @@ package api
  * */
 data class BenchmarkConfig(
 	val name: String = "",
-	val iterations: Int = 1,
+	val iterations: Int = 10,
 	val logging: Boolean = false,
 	val warmupIterations: Int = 0,
 	val formattedTable: Boolean = false

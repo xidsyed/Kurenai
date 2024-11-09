@@ -1,12 +1,10 @@
 package core
 
-import api.BenchmarkConfig
-import api.BenchmarkResult
-import api.timecell.toTimeCell
-import core.timenode.TimeNode
+import api.*
+import api.treecell.data.toTimeCell
+import core.timenode.*
 import core.timenode.TimeNodeState.Completed.Complete
 import core.timenode.TimeNodeState.Completed.Invalid
-import core.timenode.TimeTree
 import nanoToTimeString
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -42,7 +40,6 @@ class Benchmark(
 	 * */
 	fun time(title: String, nodeAction: () -> Unit) {
 		timeTree.addTimeNode(title) {
-
 			Complete(measureNanoTime { nodeAction() })
 		}
 	}
@@ -60,12 +57,10 @@ class Benchmark(
 		}
 	}
 
-	// TODO : VISIBILITY
-	// TODO : ERROR HANDLING
 	fun run(): BenchmarkResult {
-		val benchTimes = mutableListOf<TimeNode>()
-		val warmupTimes = mutableListOf<TimeNode>()
-		val benchmarkTime = measureNanoTime {
+		val iterationTimes = arrayListOf<TimeNode>().apply{ensureCapacity(config.iterations)}
+		val warmupTimes = arrayListOf<TimeNode>().apply {ensureCapacity(config.warmupIterations)}
+		val totalBenchTime = measureNanoTime {
 			setupAction?.let {
 				it()
 				log("Setup complete")
@@ -73,19 +68,25 @@ class Benchmark(
 			if (config.warmupIterations > 0) {
 				repeat(config.warmupIterations) { it ->
 					val time = measureNanoTime { benchAction?.let { it() } }
-					timeTree.rootNode.complete(time)
-					warmupTimes.add(timeTree.rootNode)
+					timeTree.iterationRoot.complete(time)
+					warmupTimes.add(timeTree.iterationRoot)
 					timeTree.resetTree()
 					log("Warmup iteration ${it + 1} took ${time.nanoToTimeString()}")
 				}
 			}
 
 			repeat(config.iterations) {
-				val time = measureNanoTime { benchAction?.let { it() } }
-				timeTree.rootNode.complete(time)
-				benchTimes.add(timeTree.rootNode)
+				var singleBenchTime = 0L
+				try {
+					singleBenchTime = measureNanoTime { benchAction?.let { it() } }
+				} catch (e: Exception) {
+					log("Error in iteration ${it + 1}: ${e.message}")
+					timeTree.iterationRoot.complete(TimeNodeState.Completed.Error)
+				}
+				timeTree.iterationRoot.complete(singleBenchTime)
+				iterationTimes.add(timeTree.iterationRoot)
 				timeTree.resetTree()
-				log("Iteration ${it + 1} took ${time.nanoToTimeString()}")
+				log("Iteration ${it + 1} took ${singleBenchTime.nanoToTimeString()}")
 			}
 
 			tearDownAction?.let {
@@ -93,15 +94,15 @@ class Benchmark(
 				log("Tear Down complete")
 			} ?: log("No Tear Down action provided")
 		}
-		log("Benchmark complete in ${benchmarkTime.nanoToTimeString()}")
+		log("Benchmark complete in ${totalBenchTime.nanoToTimeString()}")
 
 		log("Creating Benchmark Result")
 		return BenchmarkResult(
 			title = name,
 			config = config,
-			iterations = benchTimes.map {it.toTimeCell()},
+			iterations = iterationTimes.map {it.toTimeCell()},
 			warmupIterations = warmupTimes.map {it.toTimeCell()},
-			benchmarkTime = benchmarkTime
+			benchmarkTime = totalBenchTime
 		)
 	}
 

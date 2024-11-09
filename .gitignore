@@ -63,3 +63,6 @@ pids
 
 # Project Specific
 src/main/kotlin/sandbox/
+
+# Vscode Specific
+.vscode

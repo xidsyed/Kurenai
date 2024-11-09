@@ -55,6 +55,7 @@ sealed interface TimeNodeState {
 		@JvmInline
 		value class Complete(val time: Long) : Completed
 		object Invalid : Completed
+		object Error : Completed
 	}
 }
 

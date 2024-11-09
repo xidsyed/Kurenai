@@ -3,8 +3,8 @@ plugins {
     application
 }
 
-group = "dpr"
-version = "1.0-SNAPSHOT"
+group = "org.xidsyed"
+version = "0.1.0"
 
 repositories {
     mavenCentral()

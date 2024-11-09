@@ -78,16 +78,17 @@ class BenchmarkBuilder {
 }
 
 
-fun build(title: String, buildAction: BenchmarkBuilder.() -> Unit): Benchmark {
+fun build(name: String, buildAction: BenchmarkBuilder.() -> Unit): Benchmark {
 	val builder = BenchmarkBuilder()
 	builder.buildAction()
 	val benchmark = Benchmark(
-		title,
+		name = name,
 		setupAction = builder.setupAction,
 		tearDownAction = builder.tearDownAction,
 		benchAction = builder.benchmarkAction,
 		config = builder.config
 	)
 	return benchmark
+
 }
 

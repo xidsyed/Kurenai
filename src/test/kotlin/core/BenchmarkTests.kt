@@ -1,19 +1,15 @@
-package timenode.core
+package core
 
-import com.tschuchort.compiletesting.KotlinCompilation
-import com.tschuchort.compiletesting.SourceFile
+import api.build
+import api.treecell.TreeCell
+import api.treecell.data.TimeCell
+import com.tschuchort.compiletesting.*
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.junit.jupiter.api.*
-import org.junit.jupiter.api.Assertions.*
-import api.build
-import api.timecell.TimeCell
-import api.timecell.TraversalType.*
-import api.timecell.flatten
-import api.timecell.toMap
-import core.execute
+import org.junit.jupiter.api.Assertions.assertEquals
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class Tests {
+class BenchmarkTests {
 
 	val complexBenchmark = build("COMPLEX") {
 		bench {
@@ -60,15 +56,17 @@ class Tests {
 	)
 
 
-	private fun Map<TimeCell, List<TimeCell>>.stringify() =
-		this.map { (k, v) -> "${k.title} : ${v.joinToString(", ") { it.title }}" }.joinToString("\n")
+	private fun Map<String, TimeCell>.stringify() =
+		this.map { (k, v) -> "${k} : ${v.children.joinToString(", ") { it.title }}" }.joinToString("\n")
 
 	private fun List<TimeCell>.stringify() = this.joinToString("\n") { it.title }
 
 	@Test
 	fun toMap() {
-		val string = resultList.fold(StringBuilder()) { sb, el ->
-			sb.append(el.toMap().stringify() + "\n")
+		val string = resultList.fold(StringBuilder()) { sb, timeCell ->
+			val timeCellMap = timeCell.toMap()
+			val str = timeCellMap.stringify()
+			sb.append(str).appendLine()
 		}.trimEnd()
 		val expected = """
 			COMPLEX : A1, A2
@@ -85,8 +83,10 @@ class Tests {
 
 	@Test
 	fun `toMap untrimmed`() {
-		val string = resultList.fold(StringBuilder()) { sb, el ->
-			sb.append(el.toMap(unTrimmed = true).stringify() + "\n")
+		val string = resultList.fold(StringBuilder()) { sb, timeCell ->
+			val timeCellMap = timeCell.toMap(unTrimmed = true)
+			val str = timeCellMap.stringify()
+			sb.append(str).appendLine()
 		}.trimEnd()
 		val expected = """
 			COMPLEX : A1, A2
@@ -114,8 +114,9 @@ class Tests {
 
 	@Test
 	fun `flatten preorder`() {
-		val string = resultList.fold(StringBuilder()) { sb, el ->
-			sb.append(el.flatten().stringify() + "\n")
+		val string = resultList.fold(StringBuilder()) { sb, timeCell ->
+			val timeCellList = timeCell.flatten()
+			sb.append(timeCellList.stringify()).appendLine()
 		}.trimEnd()
 		println(string)
 		val expected = """
@@ -145,7 +146,7 @@ class Tests {
 	@Test
 	fun `flatten postorder`() {
 		val string = resultList.fold(StringBuilder()) { sb, el ->
-			sb.append(el.flatten(POSTORDER).stringify() + "\n")
+			sb.append(el.flatten(TreeCell.TraversalType.POSTORDER).stringify() + "\n")
 		}.trimEnd()
 
 		val expected = """
@@ -195,8 +196,9 @@ class Tests {
 			}
 		}
 
+		@Nested
 		@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-		class Compilation {
+		inner class Compilation {
 			@Test
 			fun `time inside of timeSum{} does not compile`() {
 				val result = compilationErrorTest(

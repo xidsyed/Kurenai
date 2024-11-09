@@ -1,15 +1,15 @@
 package core.timenode
 
 class TimeTree(val name: String) {
-	var rootNode = TimeNode(name, null)
-	var currentNode = rootNode
+	var iterationRoot = TimeNode(name, null)
+	var currentNode = iterationRoot
 
 	/**
 	 * Resets the rootNode to a new TimeNode and sets the currentNode to the rootNode.
 	 * */
 	fun resetTree() {
-		rootNode = TimeNode(name, null)
-		currentNode = rootNode
+		iterationRoot = TimeNode(name, null)
+		currentNode = iterationRoot
 	}
 
 	/**
