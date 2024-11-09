@@ -1,6 +1,6 @@
 plugins {
     kotlin("jvm") version "1.8.0"
-    application
+    `maven-publish`
 }
 
 group = "org.xidsyed"
@@ -26,6 +26,16 @@ kotlin {
     jvmToolchain(8)
 }
 
-application {
-    mainClass.set("MainKt")
+
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            groupId = "org.xidsyed"
+            artifactId = "kurunei"
+            version = "0.1.0"
+
+            from(components["java"])
+        }
+    }
 }
