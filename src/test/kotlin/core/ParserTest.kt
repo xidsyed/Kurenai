@@ -1,8 +1,7 @@
-package reporter
+package core
 
 import api.*
 import api.treecell.TreeCellState
-import core.execute
 import core.parser.*
 import org.junit.jupiter.api.*
 import kotlin.test.*
@@ -18,8 +17,8 @@ class ParserTest {
 	fun setup() {
 		benchmarkResult = build("COMPLEX") {
 			config {
-				warmupReps = 2
-				repCount = 3
+				warmupIterations = 2
+				iterations = 3
 			}
 
 			bench {
@@ -50,29 +49,29 @@ class ParserTest {
 	@Test
 	fun testSummary() {
 		val expectedSummary = """
-            Benchmark Name: COMPLEX
-            Benchmark Completion Time: ${benchmarkResult.benchmarkTime}ms
-            Warmup Iterations: 2
-            Benchmark Iterations: 3
+            Benchmark Name: 			COMPLEX
+            Benchmark Completion Nanos: ${benchmarkResult.benchmarkTime}ns
+            Warmup Iterations: 			2
+            Benchmark Iterations: 		3
         """.trimIndent()
 		assertEquals(expectedSummary, parser.summary)
 
 	}
 
 	@Test
-	fun testBenchTime() {
+	fun testIterationTime() {
 		val expectedResults = mutableListOf<String>()
 		val actualResults = mutableListOf<String>()
-		for(i in 0  until benchmarkResult.iterations.size) {
+		for (i in 0 until benchmarkResult.iterations.size) {
 			expectedResults.add(benchmarkResult.iterations[i].toString())
-			actualResults.add(parser.benchTime(i).toString())
+			actualResults.add(parser.rootCellFromIteration(i).toString())
 		}
 		assertEquals(expectedResults.toString(), actualResults.toString())
 	}
 
 	@Test
-	fun testBenchTimes() {
-		val benchTimes = parser.benchTimes()
+	fun testIterationsList() {
+		val benchTimes = parser.rootCellsFromAllIterations()
 		assertEquals(3, benchTimes.size)
 		benchTimes.forEach {
 			assertEquals("COMPLEX", it.title)
@@ -81,13 +80,13 @@ class ParserTest {
 	}
 
 	@Test
-	fun testIterationList() {
-		val callOrderList = parser.iterationList(0, IterationListOrder.CALL_ORDER)
+	fun testIterationTimeCellsList() {
+		val callOrderList = parser.getIterationTimeCellsAsList(0, IterationListOrder.CALL_ORDER)
 		val expectedCallOrder =
 			listOf("COMPLEX", "A1", "B1", "B2", "B3", "C1", "D1", "D2", "E1", "B4", "C2", "C3", "B5", "A2")
 		assertEquals(expectedCallOrder, callOrderList.map { it.title })
 
-		val completionOrderList = parser.iterationList(0, IterationListOrder.COMPLETION_ORDER)
+		val completionOrderList = parser.getIterationTimeCellsAsList(0, IterationListOrder.COMPLETION_ORDER)
 		val expectedCompletionOrder =
 			listOf("B1", "B2", "D1", "E1", "D2", "C1", "B3", "C2", "C3", "B4", "B5", "A1", "A2", "COMPLEX")
 		assertEquals(expectedCompletionOrder, completionOrderList.map { it.title })
@@ -95,18 +94,18 @@ class ParserTest {
 
 	@Test
 	fun testCellTime() {
-		val a1Cell = parser.cellTime("A1", 0)
+		val a1Cell = parser.timeCellByTitleFromIteration("A1", 0)
 		assertNotNull(a1Cell)
 		assertEquals("A1", a1Cell.title)
 		assert(a1Cell.timeState is TreeCellState.Complete)
 
-		val nonExistentCell = parser.cellTime("NonExistent", 0)
+		val nonExistentCell = parser.timeCellByTitleFromIteration("NonExistent", 0)
 		assertEquals(null, nonExistentCell)
 	}
 
 	@Test
 	fun testCellTimes() {
-		val a1Cells = parser.cellTimes("A1")
+		val a1Cells = parser.timeCellListByTitle("A1")
 		assertEquals(3, a1Cells.size)
 		a1Cells.forEach {
 			assertNotNull(it)
@@ -114,14 +113,14 @@ class ParserTest {
 			assert(it.timeState is TreeCellState.Complete)
 		}
 
-		val nonExistentCells = parser.cellTimes("NonExistent")
+		val nonExistentCells = parser.timeCellListByTitle("NonExistent")
 		assertEquals(3, nonExistentCells.size)
 		nonExistentCells.forEach { assertEquals(null, it) }
 	}
 
 	@Test
-	fun testAverageBenchTime() {
-		val averageBenchTime = parser.averageBenchTime()
+	fun testAverageIterationTime() {
+		val averageBenchTime = parser.averageBenchmarkTime()
 		assertEquals("COMPLEX", averageBenchTime.title)
 		assert(averageBenchTime.timeState is TreeCellState.Complete)
 
@@ -132,7 +131,7 @@ class ParserTest {
 
 	@Test
 	fun testAverageIteration() {
-		val averageIteration = parser.averageIteration()
+		val averageIteration = parser.generateAveragedIteration()
 		val actualList = averageIteration.flatten()
 		assertEquals("COMPLEX", averageIteration.title)
 		assert(averageIteration.timeState is TreeCellState.Complete)
@@ -143,36 +142,22 @@ class ParserTest {
 		val actualTitles = actualList.map { it.title }
 		assertEquals(expectedTitles.toSet(), actualTitles.toSet())
 
+		var averagesMatch = true
 		// Check if average times are calculated correctly
-		expectedTitles.forEach { title ->
+		expectedTitles.forEach { cellTitle ->
 			var count = 0
-			val durationList = benchmarkResult.iterations
-				.mapNotNull { iter ->
+			val cellDurationList: List<Long> = benchmarkResult.iterations.mapNotNull { iter ->
 					val iterList = iter.flatten()
-					val cell = iterList.find { cell -> cell.title == title }
-					return@mapNotNull cell?.duration?.let{
-						count++
-						cell.duration
-					}
+					val cell = iterList.find { cell -> cell.title == cellTitle }
+					return@mapNotNull cell?.getDuration()
 				}
-			val expectedAvgTime = if(durationList.isNotEmpty()) (durationList.sum() / count) else null
-			val actualAvgTime = actualList.find { it.title == title }?.duration
-			assertEquals(
-				expectedAvgTime,
-				actualAvgTime,
-				message = "$title\nExpected:$expectedAvgTime\nActual:$actualAvgTime\n"
-			)
-		}
-	}
+			val expectedAvgTime =
+				if (cellDurationList.isNotEmpty()) (cellDurationList.sum() / cellDurationList.size) else null
+			val actualAvgTime = actualList.find { it.title == cellTitle }?.getDuration()
 
-	@Test
-	fun main() {
-		val reporter = ConsoleReporter(parser)
-		reporter.printSummary()
-		reporter.printAverageResults()
-		reporter.printOverallResults()
-		reporter.printDetailedResults()
-		reporter.printHierarchicalResults()
-		reporter.printComparisonTable()
+			if (expectedAvgTime != actualAvgTime) averagesMatch = false
+		}
+
+		assertEquals(true, averagesMatch)
 	}
 }

@@ -1,4 +1,7 @@
 package reporter
 
-class JSONReporter {
+import core.parser.Parser
+
+class JSONReporter(parser: Parser) : Reporter(parser) {
+
 }

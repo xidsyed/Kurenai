@@ -1,18 +1,24 @@
 package api
 
+/**
+ * Builder class for configuring benchmark settings.
+ * @param name The name of the benchmark.
+ * @param iterations The number of repetitions for the benchmark.
+ * @param logging A flag to enable or disable logging.
+ * @param warmupIterations The number of warmup repetitions.
+ * @param formattedTable A flag to enable or disable formatted table output.
+ */
 class BenchmarkConfigBuilder {
-	var name: String = "Untitled"
-	var repCount: Int = 1
+	var iterations: Int = 1
 	var logging: Boolean = false
-	var warmupReps: Int = 0
+	var warmupIterations: Int = 0
 	var formattedTable: Boolean = false
 
 	fun build(): BenchmarkConfig {
 		return BenchmarkConfig(
-			name = name,
-			iterations = repCount,
+			iterations = iterations,
 			logging = logging,
-			warmupIterations = warmupReps,
+			warmupIterations = warmupIterations,
 			formattedTable = formattedTable
 		)
 	}

@@ -9,7 +9,6 @@ package api
  * @param formattedTable: A boolean flag to enable or disable formatted table output. Enabling will print a formatted table of the results
  * */
 data class BenchmarkConfig(
-	val name: String = "",
 	val iterations: Int = 10,
 	val logging: Boolean = false,
 	val warmupIterations: Int = 0,

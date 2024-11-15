@@ -205,7 +205,7 @@ class BenchmarkTests {
 					fileContent = """
 						import build
 						import execute
-						fun main() {
+						fun printTable() {
 							build("B1") {
 								bench {
 									timeSum("A1") {

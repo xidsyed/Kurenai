@@ -1,16 +1,21 @@
 package api
 
 import core.Benchmark
+import kotlin.random.Random
 
+/**
+ * Builder class for creating a benchmark.
+ * Allows configuration of setup, teardown, and benchmark actions.
+ * @param setupAction
+ * @param tearDownAction
+ * @param benchmarkAction
+ * @param config
+ */
 class BenchmarkBuilder {
-	var setupAction: (() -> Unit)?
-		private set
-	var tearDownAction: (() -> Unit)?
-		private set
-	var benchmarkAction: (Benchmark.() -> Unit)?
-		private set
-	var config: BenchmarkConfig = BenchmarkConfig()
-		private set
+	private var setupAction: (() -> Unit)?
+	private var tearDownAction: (() -> Unit)?
+	private var benchmarkAction: (Benchmark.() -> Unit)?
+	private var config: BenchmarkConfig = BenchmarkConfig()
 
 	init {
 		setupAction = null
@@ -20,7 +25,15 @@ class BenchmarkBuilder {
 
 	/**
 	 * @see [BenchmarkConfig] for available configuration options
-	 * @param configAction: A lambda that takes a [BenchmarkConfigBuilder] as a receiver and returns Unit.
+	 * @param configAction A lambda that builds a [BenchmarkConfig] and returns Unit.
+	 * ```
+	 * config {
+	 * 	iterations = 1
+	 * 	logging = false
+	 * 	warmupIterations = 0
+	 * 	formattedTable = false
+	 * }
+	 * ```
 	 **/
 	fun config(configAction: BenchmarkConfigBuilder.() -> Unit) {
 		val config = BenchmarkConfigBuilder().apply { configAction() }.build()
@@ -37,16 +50,15 @@ class BenchmarkBuilder {
 	}
 
 	/**
-	 * ### Usage:
+	 * This function accepts a `action` lambda that is  used to define a repeatable benchmark action.
+	 * - Allows nested benchmarking of code with the [Benchmark.time] function.
+	 * - Allows user to define a default [BenchmarkConfig] by passing a lambda to the [BenchmarkBuilder.config] function.
+	 * - It also provides an outer-scope for all the internal nested benchmarks to share references to variables and resources.
+	 * - Repeated calls to this function replace the existing benchmark action with the new one.
+	 * ### Example:
 	 * ```
 	 * 	val benchmark = build("SORT ARRAY BENCHMARK") {
 	 * 		bench {
-	 * 			config {
-	 * 				warmupReps = 5
-	 * 				repCount = 100
-	 * 				logging = true
-	 * 			}
-	 *
 	 * 			var arr: IntArray? = null
 	 * 			var sorted: IntArray? = null
 	 *
@@ -59,36 +71,94 @@ class BenchmarkBuilder {
 	 * 			time("Get Sorted Array") {
 	 * 				sorted = arr!!.sortedArray()
 	 * 			}
-	 *
 	 * 		}
 	 * 	}
 	 *
 	 * 	val result = benchmark.execute(overrideConfig = BenchmarkConfig(..))
 	 * ```
-	 * This function accepts a `action` lambda that is  used to define a repeatable benchmark action.
-	 * - Allows nested benchmarking of code with the [Benchmark.time] function.
-	 * - Allows user to define a default [BenchmarkConfig] by passing a lambda to the [BenchmarkBuilder.config] function.
-	 * - It also provides an outer-scope for all the internal nested benchmarks to share references to variables and resources.
-	 * - Repeated calls to this function replace the existing benchmark action with the new one.
-	 **
+
 	 * */
 	fun bench(action: Benchmark.() -> Unit) {
 		benchmarkAction = action
 	}
+
+	internal fun toBenchmark(name: String) = Benchmark(
+		name = name,
+		setupAction = setupAction,
+		tearDownAction = tearDownAction,
+		benchAction = benchmarkAction,
+		config = config
+	)
 }
 
+/**
+ * Builds a benchmark with the specified name and configuration.
+ * @param name The name of the benchmark.
+ * @param buildAction A lambda that defines the benchmark configuration using the [BenchmarkBuilder].
+ * @return A Benchmark instance configured with the specified settings.
+ *
+ * Here is a simple example:
+ * ```
+ * 	build("benchmark") {
+ * 		config {
+ * 			warmupIterations = 3
+ * 			iterations = 10
+ * 		}
+ *
+ * 		lateinit var list: MutableList<Int>
+ * 		setup { buildList { repeat(1000) { add(Random.nextInt()) } } }
+ * 		bench {
+ * 			time("increment list") {
+ * 				for (i in 0..list.size) {
+ * 					list[i] = list[i] + 1
+ * 				}
+ * 			}
+ * 			time("filter and sort") {
+ * 				time("filter even elements") {
+ * 					for (i in 0..list.size) {
+ * 						list[i] = if (list[i] % 2 == 0) 0 else list[i]
+ * 					}
+ * 				}
+ * 				time("sort list") { list.sorted() }
+ * 			}
+ * 		}
+ * 		tearDown { list.replaceAll { -1 } }
+ * 	}
+ *
+ * ```
+ */
 
 fun build(name: String, buildAction: BenchmarkBuilder.() -> Unit): Benchmark {
 	val builder = BenchmarkBuilder()
 	builder.buildAction()
-	val benchmark = Benchmark(
-		name = name,
-		setupAction = builder.setupAction,
-		tearDownAction = builder.tearDownAction,
-		benchAction = builder.benchmarkAction,
-		config = builder.config
-	)
-	return benchmark
+	return builder.toBenchmark(name)
+}
 
+fun test() {
+	build("benchmark") {
+		config {
+			warmupIterations = 3
+			iterations = 10
+		}
+
+		lateinit var list: MutableList<Int>
+		setup { buildList { repeat(1000) { add(Random.nextInt()) } } }
+		bench {
+			time("increment list") {
+				for (i in 0..list.size) {
+					list[i] = list[i] + 1
+				}
+			}
+			time("filter and sort") {
+				time("filter even elements") {
+					for (i in 0..list.size) {
+						list[i] = if (list[i] % 2 == 0) 0 else list[i]
+					}
+				}
+				time("sort list") { list.sorted() }
+			}
+		}
+		tearDown { list.replaceAll { -1 } }
+	}
 }
 

@@ -4,6 +4,8 @@ import api.BenchmarkResult
 import api.treecell.TreeCell.TraversalType.PREORDER
 import api.treecell.TreeCellState.Complete
 import api.treecell.data.*
+import reporter.utils.UnitOfTime
+import trimAllIndent
 
 /**
  * A parser for benchmarking results.
@@ -13,7 +15,7 @@ import api.treecell.data.*
 class Parser(result: BenchmarkResult) {
 
 	val benchmarkName: String = result.title
-	val benchmarkCompletionTime: Long = result.benchmarkTime
+	val nanoseconds: Long = result.benchmarkTime
 	val iterationCount = result.iterations.size
 	val warmupIterationCount = result.warmupIterations.size
 
@@ -24,11 +26,11 @@ class Parser(result: BenchmarkResult) {
 	 * A summary of the benchmark result.
 	 */
 	val summary: String = """
-        Benchmark Name: $benchmarkName
-        Benchmark Completion Time: ${benchmarkCompletionTime}ms
-        Warmup Iterations: $warmupIterationCount
-        Benchmark Iterations: $iterationCount
-    """.trimIndent()
+        Benchmark Name				: $benchmarkName
+        Benchmark Time 				: ${nanoseconds.div(UnitOfTime.MILLISECOND.inNanos)}ms | ${nanoseconds}ns
+        Warmup Iterations			: $warmupIterationCount
+        Benchmark Iterations		: $iterationCount
+    """.trimAllIndent()
 
 	/**
 	 * Retrieves the benchmark time for a specific iteration.
@@ -37,7 +39,10 @@ class Parser(result: BenchmarkResult) {
 	 * @param iterationType The type of iteration (BENCHMARK_ITERATION or WARMUP_ITERATION).
 	 * @return The root time cell of the specified iteration.
 	 */
-	fun benchTime(iterationIndex: Int, iterationType: IterationType = IterationType.BENCHMARK_ITERATION): TimeCell {
+	fun rootCellFromIteration(
+		iterationIndex: Int,
+		iterationType: IterationType = IterationType.BENCHMARK_ITERATION
+	): TimeCell {
 		val holders = if (iterationType == IterationType.BENCHMARK_ITERATION) iterHolders else warmupIterHolders
 		return holders[iterationIndex].rootCell
 	}
@@ -48,7 +53,7 @@ class Parser(result: BenchmarkResult) {
 	 * @param iterationType The type of iteration (BENCHMARK_ITERATION or WARMUP_ITERATION).
 	 * @return A list of root time cells for all iterations.
 	 */
-	fun benchTimes(iterationType: IterationType = IterationType.BENCHMARK_ITERATION): List<TimeCell> {
+	fun rootCellsFromAllIterations(iterationType: IterationType = IterationType.BENCHMARK_ITERATION): List<TimeCell> {
 		val holders = if (iterationType == IterationType.BENCHMARK_ITERATION) iterHolders else warmupIterHolders
 		return holders.map { it.rootCell }
 	}
@@ -61,11 +66,16 @@ class Parser(result: BenchmarkResult) {
 	 * @param iterationType The type of iteration (BENCHMARK_ITERATION or WARMUP_ITERATION).
 	 * @return A list of time cells for the specified iteration in the specified order.
 	 */
-	fun iterationList(index: Int, order: IterationListOrder = IterationListOrder.CALL_ORDER, iterationType: IterationType = IterationType.BENCHMARK_ITERATION): List<TimeCell> {
+	fun getIterationTimeCellsAsList(
+		index: Int,
+		order: IterationListOrder = IterationListOrder.CALL_ORDER,
+		iterationType: IterationType = IterationType.BENCHMARK_ITERATION
+	): List<TimeCell> {
 		val holders = if (iterationType == IterationType.BENCHMARK_ITERATION) iterHolders else warmupIterHolders
 		return if (order == IterationListOrder.COMPLETION_ORDER) holders[index].completionOrderedList
 		else holders[index].callOrderedList
 	}
+
 
 	/**
 	 * Retrieves a specific time cell by title for a given iteration.
@@ -75,7 +85,11 @@ class Parser(result: BenchmarkResult) {
 	 * @param iterationType The type of iteration (BENCHMARK_ITERATION or WARMUP_ITERATION).
 	 * @return The time cell associated with the title in the specified iteration, or null if not found.
 	 */
-	fun cellTime(title: String, iteration: Int, iterationType: IterationType = IterationType.BENCHMARK_ITERATION): TimeCell? {
+	fun timeCellByTitleFromIteration(
+		title: String,
+		iteration: Int,
+		iterationType: IterationType = IterationType.BENCHMARK_ITERATION
+	): TimeCell? {
 		val holders = if (iterationType == IterationType.BENCHMARK_ITERATION) iterHolders else warmupIterHolders
 		return holders[iteration].titleMap[title]
 	}
@@ -87,7 +101,10 @@ class Parser(result: BenchmarkResult) {
 	 * @param iterationType The type of iteration (BENCHMARK_ITERATION or WARMUP_ITERATION).
 	 * @return A list of time cells associated with the title across all iterations, with null for missing titles.
 	 */
-	fun cellTimes(title: String, iterationType: IterationType = IterationType.BENCHMARK_ITERATION): List<TimeCell?> {
+	fun timeCellListByTitle(
+		title: String,
+		iterationType: IterationType = IterationType.BENCHMARK_ITERATION
+	): List<TimeCell?> {
 		val holders = if (iterationType == IterationType.BENCHMARK_ITERATION) iterHolders else warmupIterHolders
 		return holders.map { it.titleMap[title] }
 	}
@@ -98,10 +115,10 @@ class Parser(result: BenchmarkResult) {
 	 * @param list The list of time cells to average.
 	 * @return The average duration as a Long.
 	 */
-	private fun averageCellTime(list: List<TimeCell>): Long {
+	private fun averageCell(list: List<TimeCell>): Long {
 		var sum = 0L
 		var count = 0
-		list.forEach { cell -> cell.duration?.let { sum += it; count++ } }
+		list.forEach { cell -> cell.getDuration()?.let { sum += it; count++ } }
 		return sum / count
 	}
 
@@ -111,21 +128,21 @@ class Parser(result: BenchmarkResult) {
 	 * @param iterationType The type of iteration (BENCHMARK_ITERATION or WARMUP_ITERATION).
 	 * @return A TimeCell representing the average benchmark time.
 	 */
-	fun averageBenchTime(iterationType: IterationType = IterationType.BENCHMARK_ITERATION): TimeCell {
+	fun averageBenchmarkTime(iterationType: IterationType = IterationType.BENCHMARK_ITERATION): TimeCell {
 		val holders = if (iterationType == IterationType.BENCHMARK_ITERATION) iterHolders else warmupIterHolders
 		return TimeCell(
 			holders.first().rootCell.title,
-			Complete(averageCellTime(holders.map { it.rootCell }))
+			Complete(averageCell(holders.map { it.rootCell }))
 		)
 	}
 
 	/**
-	 * Computes the average time cell for the iterations.
+	 * Generates an iteration that is the average of all the iterations of the specified [IterationType]
 	 *
 	 * @param iterationType The type of iteration (BENCHMARK_ITERATION or WARMUP_ITERATION).
-	 * @return A TimeCell representing the average of all time states across iterations.
+	 * @return A root [TimeCell] representing the average of all time cells across iterations.
 	 */
-	fun averageIteration(iterationType: IterationType = IterationType.BENCHMARK_ITERATION): TimeCell {
+	fun generateAveragedIteration(iterationType: IterationType = IterationType.BENCHMARK_ITERATION): TimeCell {
 		val holders = if (iterationType == IterationType.BENCHMARK_ITERATION) iterHolders else warmupIterHolders
 		val mTree = holders.first().rootCell.toMutableTimeCell()    // First Iteration Source of truth
 		val mList = mTree.flatten(traversalType = PREORDER)

@@ -17,7 +17,8 @@ enum class UnitOfTime(val inNanos: Long, val suffix: String) {
 	MINUTE(60_000_000_000, "m"),
 	SECOND(1_000_000_000, "s"),
 	MILLISECOND(1_000_000, "ms"),
-	MICROSECOND(1_000, "μs");
+	MICROSECOND(1_000, "μs"),
+	NANOSECOND(1, "ns");
 }
 
 

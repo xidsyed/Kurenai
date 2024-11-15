@@ -114,6 +114,11 @@ class Benchmark(
 	}
 }
 
+/**
+ * Executes the benchmark and returns the results.
+ * @param overrideConfig Optional configuration to override the existing benchmark configuration.
+ * @return The results of the benchmark execution.
+ */
 
 fun Benchmark.execute(overrideConfig: BenchmarkConfig? = null): BenchmarkResult {
 	overrideConfig?.let { config = it }
